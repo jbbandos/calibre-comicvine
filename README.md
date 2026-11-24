@@ -2,8 +2,9 @@
 A calibre metadata source plugin for comicvine.com.
 
 # Fork
-This fork is an attempt at getting the (abandoned) plugin working with calibre 5.x+ (jbbandos@github). 
+This fork is is now the "official" version of the plugin (jbbandos@github). 
 The owner of the original code (@xchewtoyx) was informed.
+It is due to a rework, to better handle the idiossincracies of the comicvine search
 
 ## Install
 

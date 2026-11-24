@@ -78,6 +78,8 @@ if __name__ == "__main__":
                             "david erwin",
                             "george c. romero",
                             "blake northcott",
+                            "gaetano liberatore",
+                            "josh robertson",
                         ]
                     ),
                 ],
