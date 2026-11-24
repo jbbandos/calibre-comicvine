@@ -225,13 +225,13 @@ def normalised_title(query, title):
         (r"\s\(?of \d+\)?", ""),
         (r"(?:v|vol)\s?\d+", ""),
         (r"\([^)]+\)", ""),
-        ("(?:# ?)?0*([\d\xbd]+[^:\s]*):?[^\d]*$", "#\g<1>"),
+        (r"(?:# ?)?0*([\d\xbd]+[^:\s]*):?[^\d]*$", r"#\g<1>"),
         (r"\s{2,}", " "),
     )
     if isinstance(title, str):
         for pattern, replacement in replacements:
             title = re.sub(pattern, replacement, title)
-        issue_pattern = re.compile("#([^:\s]+)")
+        issue_pattern = re.compile(r"#([^:\s]+)")
         issue_match = issue_pattern.search(title)
         if issue_match:
             issue_number = issue_match.group(1)
