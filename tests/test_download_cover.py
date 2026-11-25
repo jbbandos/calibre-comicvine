@@ -1,15 +1,42 @@
 """Tests for ``Comicvine.download_cover`` (Requirement 4.9)."""
+import struct
 import unittest
 import unittest.mock
+import zlib
 from queue import Queue
 
 from calibre_plugins.comicvine.source import Comicvine
 
 from tests.mock_comicvine import MockComicvineMixin
 
+ORIGINAL = "http://mock.invalid/original.jpg"
 SUPER = "http://mock.invalid/super.jpg"
 MEDIUM = "http://mock.invalid/medium.jpg"
 SMALL = "http://mock.invalid/small.jpg"
+
+
+def png(width, height):
+    """Tiny valid grayscale PNG of the given size (identify() reads the IHDR)."""
+
+    def chunk(kind, data):
+        body = kind + data
+        return (
+            struct.pack(">I", len(data))
+            + body
+            + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+        )
+
+    raw = b"".join(b"\x00" + b"\x00" * width for _ in range(height))
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw))
+        + chunk(b"IEND", b"")
+    )
+
+
+# Different sizes by default, so both original and super are queued.
+SIZES = {ORIGINAL: (20, 30), SUPER: (10, 15), MEDIUM: (6, 9), SMALL: (3, 4)}
 
 
 class FakeResponse:
@@ -21,17 +48,18 @@ class FakeResponse:
 
 
 class FakeBrowser:
-    """Stub browser: returns ``b"data:<url>"`` unless the url is in ``fail``."""
+    """Stub browser: returns a PNG of ``sizes[url]`` unless the url is in ``fail``."""
 
     def __init__(self, fail=()):
         self.fail = set(fail)
+        self.sizes = dict(SIZES)
         self.opened = []
 
     def open_novisit(self, url, timeout=None):
         self.opened.append((url, timeout))
         if url in self.fail:
             raise IOError("boom")
-        return FakeResponse(b"data:" + url.encode())
+        return FakeResponse(png(*self.sizes[url]))
 
 
 class FakeLog:
@@ -75,38 +103,54 @@ class DownloadCoverTest(MockComicvineMixin, unittest.TestCase):
             self.log, self.queue, None, **kwargs
         )
 
-    def test_all_covers_put_on_queue_with_source(self):
+    def test_original_and_super_queued_when_sizes_differ(self):
         self.download()
         self.assertEqual(
             self.drain(),
             [
-                (self.source, b"data:" + SUPER.encode()),
-                (self.source, b"data:" + MEDIUM.encode()),
-                (self.source, b"data:" + SMALL.encode()),
+                (self.source, png(*SIZES[ORIGINAL])),
+                (self.source, png(*SIZES[SUPER])),
             ],
         )
+        self.assertEqual([u for u, _ in self.browser.opened], [ORIGINAL, SUPER])
 
-    def test_best_cover_queues_only_first(self):
-        self.download(get_best_cover=True)
-        self.assertEqual(self.drain(), [(self.source, b"data:" + SUPER.encode())])
-        self.assertEqual([u for u, _ in self.browser.opened], [SUPER])
+    def test_super_skipped_when_same_size_as_original(self):
+        self.browser.sizes[SUPER] = SIZES[ORIGINAL]
+        self.download()
+        self.assertEqual(self.drain(), [(self.source, png(*SIZES[ORIGINAL]))])
 
-    def test_best_cover_falls_back_when_first_fails(self):
-        self.browser.fail.add(SUPER)
+    def test_super_queued_when_only_one_dimension_matches(self):
+        self.browser.sizes[SUPER] = (SIZES[ORIGINAL][0], 99)
+        self.download()
+        self.assertEqual(len(self.drain()), 2)
+
+    def test_medium_and_small_never_requested(self):
+        self.download()
+        self.assertEqual(
+            [u for u, _ in self.browser.opened], [ORIGINAL, SUPER]
+        )
+
+    def test_best_cover_queues_only_original(self):
         self.download(get_best_cover=True)
-        self.assertEqual(self.drain(), [(self.source, b"data:" + MEDIUM.encode())])
-        self.assertEqual([u for u, _ in self.browser.opened], [SUPER, MEDIUM])
+        self.assertEqual(self.drain(), [(self.source, png(*SIZES[ORIGINAL]))])
+        self.assertEqual([u for u, _ in self.browser.opened], [ORIGINAL])
+
+    def test_best_cover_falls_back_to_super_when_original_fails(self):
+        self.browser.fail.add(ORIGINAL)
+        self.download(get_best_cover=True)
+        self.assertEqual(self.drain(), [(self.source, png(*SIZES[SUPER]))])
+        self.assertEqual([u for u, _ in self.browser.opened], [ORIGINAL, SUPER])
         self.assertEqual(len(self.log.exceptions), 1)
 
     def test_best_cover_all_fail_queues_nothing_and_logs(self):
-        self.browser.fail.update({SUPER, MEDIUM, SMALL})
+        self.browser.fail.update({ORIGINAL, SUPER})
         self.download(get_best_cover=True)
         self.assertEqual(self.drain(), [])
-        self.assertEqual(len(self.log.exceptions), 3)
+        self.assertEqual(len(self.log.exceptions), 2)
 
     def test_timeout_passed_to_browser(self):
         self.download(timeout=7, get_best_cover=True)
-        self.assertEqual(self.browser.opened, [(SUPER, 7)])
+        self.assertEqual(self.browser.opened, [(ORIGINAL, 7)])
 
     def test_no_comicvine_identifier_queues_nothing(self):
         self.download(identifiers={"isbn": "123"})
@@ -114,17 +158,11 @@ class DownloadCoverTest(MockComicvineMixin, unittest.TestCase):
         self.assertEqual(self.drain(), [])
         self.assertEqual(self.browser.opened, [])
 
-    def test_failed_download_is_logged_and_next_url_still_tried(self):
-        self.browser.fail.add(SUPER)
+    def test_failed_original_is_logged_and_super_still_queued(self):
+        self.browser.fail.add(ORIGINAL)
         self.download()
         self.assertEqual(len(self.log.exceptions), 1)
-        self.assertEqual(
-            self.drain(),
-            [
-                (self.source, b"data:" + MEDIUM.encode()),
-                (self.source, b"data:" + SMALL.encode()),
-            ],
-        )
+        self.assertEqual(self.drain(), [(self.source, png(*SIZES[SUPER]))])
 
     def test_issue_without_images_queues_nothing(self):
         self.cv.issues[0].image = {}

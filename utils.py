@@ -371,7 +371,7 @@ def keygen(metadata, title=None, authors=None, identifiers=None, **kwargs):
 def cover_urls(comicvine_id, get_best_cover=False):
     "Retrieve cover urls for comic in quality order"
     issue = pycomicvine.Issue(int(comicvine_id), field_list=["image"])
-    for url in ["super_url", "medium_url", "small_url"]:
+    for url in ["original_url", "super_url"]:
         if url in issue.image:
             yield issue.image[url]
             if get_best_cover:

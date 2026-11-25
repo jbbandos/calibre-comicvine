@@ -12,6 +12,7 @@ from calibre import setup_cli_handlers
 from calibre.ebooks.metadata.opf2 import metadata_to_opf
 from calibre.ebooks.metadata.sources.base import Source
 from calibre.utils.config import OptionParser
+from calibre.utils.imghdr import identify
 import calibre.utils.logging as calibre_logging
 from calibre_plugins.comicvine import pycomicvine
 from calibre_plugins.comicvine.config import PREFS
@@ -140,7 +141,7 @@ class Comicvine(Source):
             self.clean_downloaded_metadata(metadata)
             image = getattr(issue, "image", None)
             if image:
-                for key in ("super_url", "medium_url", "small_url"):
+                for key in ("original_url", "super_url"):
                     if image.get(key):
                         self.cache_identifier_to_cover_url(
                             f"comicvine:{issue.id}", image[key]
@@ -263,14 +264,20 @@ class Comicvine(Source):
         """will download the first cover for a specific title"""
         """if there is an error with the first, it falls back to lower resolution ones"""
         if identifiers and "comicvine" in identifiers:
+            first_size = None
             for url in utils.cover_urls(identifiers["comicvine"]):
                 #        url = 'http://static.comicvine.com' + url
                 browser = self.browser
                 log("Downloading cover from:", url)
                 try:
                     cdata = browser.open_novisit(url, timeout=timeout).read()
+                    size = identify(cdata)[1:]
+                    if first_size is not None and size == first_size:
+                        log("Skipping cover with same size as original:", url)
+                        continue
                     result_queue.put((self, cdata))
                     if get_best_cover:
                         break
+                    first_size = size
                 except Exception:
                     log.exception("Failed to download cover from:", url)

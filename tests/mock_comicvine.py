@@ -83,6 +83,7 @@ def default_fixtures():
         store_date=datetime.datetime(2012, 3, 14),
         cover_date=datetime.datetime(2012, 3, 1),
         image={
+            "original_url": "http://mock.invalid/original.jpg",
             "super_url": "http://mock.invalid/super.jpg",
             "medium_url": "http://mock.invalid/medium.jpg",
             "small_url": "http://mock.invalid/small.jpg",

@@ -23,12 +23,12 @@ class CachedCoverUrlTest(MockComicvineMixin, unittest.TestCase):
             FakeLog(), Queue(), threading.Event(), self.issue
         )
 
-    def test_first_available_size_is_returned_for_str_and_int_ids(self):
+    def test_original_is_preferred_for_str_and_int_ids_for_str_and_int_ids(self):
         self.enqueue()
         for cv_id in ("300001", 300001):
             self.assertEqual(
                 self.source.get_cached_cover_url({"comicvine": cv_id}),
-                "http://mock.invalid/super.jpg",
+                "http://mock.invalid/original.jpg",
             )
 
     def test_issue_without_image_gives_none(self):
@@ -38,12 +38,22 @@ class CachedCoverUrlTest(MockComicvineMixin, unittest.TestCase):
             self.source.get_cached_cover_url({"comicvine": "300001"})
         )
 
-    def test_only_medium_url_is_used(self):
-        self.issue.image = {"medium_url": "http://mock.invalid/medium.jpg"}
+    def test_super_url_used_when_no_original(self):
+        self.issue.image = {
+            "super_url": "http://mock.invalid/super.jpg",
+            "medium_url": "http://mock.invalid/medium.jpg",
+        }
         self.enqueue()
         self.assertEqual(
             self.source.get_cached_cover_url({"comicvine": "300001"}),
-            "http://mock.invalid/medium.jpg",
+            "http://mock.invalid/super.jpg",
+        )
+
+    def test_only_medium_url_is_not_cached(self):
+        self.issue.image = {"medium_url": "http://mock.invalid/medium.jpg"}
+        self.enqueue()
+        self.assertIsNone(
+            self.source.get_cached_cover_url({"comicvine": "300001"})
         )
 
     def test_missing_identifier_gives_none(self):
