@@ -91,6 +91,19 @@ class DownloadCoverTest(MockComicvineMixin, unittest.TestCase):
         self.assertEqual(self.drain(), [(self.source, b"data:" + SUPER.encode())])
         self.assertEqual([u for u, _ in self.browser.opened], [SUPER])
 
+    def test_best_cover_falls_back_when_first_fails(self):
+        self.browser.fail.add(SUPER)
+        self.download(get_best_cover=True)
+        self.assertEqual(self.drain(), [(self.source, b"data:" + MEDIUM.encode())])
+        self.assertEqual([u for u, _ in self.browser.opened], [SUPER, MEDIUM])
+        self.assertEqual(len(self.log.exceptions), 1)
+
+    def test_best_cover_all_fail_queues_nothing_and_logs(self):
+        self.browser.fail.update({SUPER, MEDIUM, SMALL})
+        self.download(get_best_cover=True)
+        self.assertEqual(self.drain(), [])
+        self.assertEqual(len(self.log.exceptions), 3)
+
     def test_timeout_passed_to_browser(self):
         self.download(timeout=7, get_best_cover=True)
         self.assertEqual(self.browser.opened, [(SUPER, 7)])
