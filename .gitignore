@@ -1,2 +1,10 @@
 *~
 *.pyc
+
+# Private library data and live-test results (never commit)
+tests/private/
+.kiro/specs/plugin-test-suite/tasks.md
+.kiro/specs/plugin-test-suite/tasks.meta.json
+.kiro/steering/issue-workflow.md
+.kiro/steering/release-mobileread.md
+.kiro/steering/release.md
