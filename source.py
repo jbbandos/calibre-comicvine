@@ -25,7 +25,7 @@ class Comicvine(Source):
     name = "Comicvine"
     description = "Downloads metadata and covers from Comicvine"
     author = "Russell Heilling/Bernardo Bandos"
-    version = (0, 14, 4)
+    version = (0, 14, 5)
     minimum_calibre_version = (6, 0, 0)
     capabilities = frozenset(["identify", "cover"])
     touched_fields = frozenset(
