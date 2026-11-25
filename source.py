@@ -138,9 +138,25 @@ class Comicvine(Source):
         metadata = utils.build_meta(log, issue)
         if metadata:
             self.clean_downloaded_metadata(metadata)
+            image = getattr(issue, "image", None)
+            if image:
+                for key in ("super_url", "medium_url", "small_url"):
+                    if image.get(key):
+                        self.cache_identifier_to_cover_url(
+                            f"comicvine:{issue.id}", image[key]
+                        )
+                        break
             with self._qlock:
                 result_queue.put(metadata)
             log.debug(f"Added 'Issue {metadata.title}' to queue")
+
+    def get_cached_cover_url(self, identifiers):
+        "Return the cached cover URL for the comicvine id, if any"
+        if identifiers and identifiers.get("comicvine"):
+            return self.cached_identifier_to_cover_url(
+                f"comicvine:{identifiers['comicvine']}"
+            )
+        return None
 
     def identify_results_keygen(self, title=None, authors=None, identifiers=None):
         "Provide a keying function for result comparison"
