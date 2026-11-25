@@ -6,6 +6,7 @@ import random
 import re
 import time
 import threading
+import unicodedata
 
 from calibre.ebooks.metadata.book.base import Metadata
 from calibre.utils import logging as calibre_logging  # pylint: disable=W0404
@@ -287,12 +288,24 @@ def find_authors(query, authors, log):
     return candidate_authors
 
 
+def fold(text):
+    """Casefold, strip accents and punctuation, drop a leading article."""
+    text = unicodedata.normalize("NFKD", str(text))
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = re.sub(r"[^\w\s#]", " ", text.casefold())
+    text = re.sub(r"\s+", " ", text).strip()
+    for article in ("the ", "a ", "an "):
+        if text.startswith(article):
+            return text[len(article):]
+    return text
+
+
 def score_title(metadata, title=None, issue_number=None, title_tokens=None):
     """
     Calculate title matching ranking
     """
     score = 0
-    volume = f"{metadata.series.lower()} #{metadata.series_index}"
+    volume = fold(f"{metadata.series} #{metadata.series_index}")
     match_year = re.compile(r"\((\d{4})\)")
     year = match_year.search(title)
     if year:
@@ -301,8 +314,9 @@ def score_title(metadata, title=None, issue_number=None, title_tokens=None):
             score += abs(metadata.pubdate.year - int(year.group(1)))
         else:
             score += 10  # penalise entries with no publication date
+    title = fold(title)
     score += abs(len(volume) - len(title))
-    for token in title_tokens:
+    for token in map(fold, title_tokens):
         if token not in volume:
             score += 10
         try:
@@ -312,7 +326,9 @@ def score_title(metadata, title=None, issue_number=None, title_tokens=None):
             pass
     if issue_number is not None and metadata.series_index != issue_number:
         score += 50
-    if metadata.series_index not in title:
+    index = str(metadata.series_index)
+    # YYYYMM-style indexes follow a different convention; do not penalise
+    if not re.fullmatch(r"\d{6}", index) and fold(index) not in title:
         score += 10
     # De-preference TPBs by looking for the phrases "collecting issues",
     # "containing issues", etc. in the comments

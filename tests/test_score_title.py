@@ -111,5 +111,32 @@ class ScoreTitleTests(unittest.TestCase):
         self.assertEqual(collected - plain, 50)
 
 
+class FoldTests(unittest.TestCase):
+    def test_fold_ignores_accents_and_case(self):
+        self.assertEqual(utils.fold("Café Noir"), utils.fold("cafe noir"))
+
+    def test_fold_ignores_leading_article(self):
+        self.assertEqual(utils.fold("The Example"), utils.fold("example"))
+
+    def test_score_title_equal_for_accent_and_case_variants(self):
+        def score(series, title, token):
+            return utils.score_title(
+                meta(series=series), title=title, issue_number="1",
+                title_tokens=[token],
+            )
+        plain = score("Cafe Noir", "cafe noir #1", "cafe")
+        self.assertEqual(plain, 0)
+        self.assertEqual(score("Café Noir", "Cafe Noir #1", "CAFÉ"), plain)
+        self.assertEqual(score("The Example", "example #1", "example"), plain)
+
+    def test_yyyymm_series_index_not_penalised(self):
+        score = utils.score_title(
+            meta(series="Example", index="202008"), title="example",
+            issue_number="202008", title_tokens=["example"],
+        )
+        # Only the length difference (" #202008") contributes; no +10 penalty.
+        self.assertEqual(score, len(" #202008"))
+
+
 if __name__ == "__main__":
     unittest.main()
