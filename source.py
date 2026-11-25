@@ -245,13 +245,16 @@ class Comicvine(Source):
         get_best_cover=False,
     ):
         """will download the first cover for a specific title"""
+        """if there is an error with the first, it falls back to lower resolution ones"""
         if identifiers and "comicvine" in identifiers:
-            for url in utils.cover_urls(identifiers["comicvine"], get_best_cover):
+            for url in utils.cover_urls(identifiers["comicvine"]):
                 #        url = 'http://static.comicvine.com' + url
                 browser = self.browser
                 log("Downloading cover from:", url)
                 try:
                     cdata = browser.open_novisit(url, timeout=timeout).read()
                     result_queue.put((self, cdata))
+                    if get_best_cover:
+                        break
                 except Exception:
                     log.exception("Failed to download cover from:", url)
